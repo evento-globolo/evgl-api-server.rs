@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "bootstrap_id": "four-org-rust-fleets-2026-08-04-v1",
+  "generated_on": "2026-08-04",
+  "organization": "evento-globolo",
+  "repository": "evgl-api",
+  "product": "Evento Globolo",
+  "kind": "service",
+  "description": "Axum REST and WebSocket API server for Evento Globolo.",
+  "default_branch": "main",
+  "visibility": "public",
+  "license": "MIT",
+  "dependency_pins": {
+    "flags-2-env": "b596f2d1c99bd726b262a923916e3015bc80bc37",
+    "opto-sync/syncer.rs": "132a97c77867128656070be85d3046b0cc065cbf"
+  }
+}
