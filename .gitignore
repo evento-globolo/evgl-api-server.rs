@@ -1,8 +1,8 @@
-/target
 .env
 .env.*
 !.env.example
-.DS_Store
-*.log
-.idea/
-.vscode/
+target/
+node_modules/
+dist/
+.astro/
+coverage/

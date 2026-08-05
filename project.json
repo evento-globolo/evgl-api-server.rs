@@ -1,0 +1,17 @@
+{
+  "bootstrap_date": "20260804",
+  "kind": "api",
+  "organization": "evento-globolo",
+  "repository": "evgl-api",
+  "required_paths": [
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "Cargo.toml",
+    "STACK.md",
+    "scripts/verify_repo.py",
+    "src/main.rs"
+  ],
+  "schema_version": 1,
+  "tracking_issue": "DEN-1889",
+  "visibility": "public"
+}
