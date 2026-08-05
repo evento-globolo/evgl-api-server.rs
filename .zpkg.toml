@@ -1,0 +1,20 @@
+[package]
+org = "evento-globolo"
+name = "evgl-api"
+version = "0.1.0"
+description = "Rust API server for Evento Globolo"
+license = "MIT"
+language = "rust"
+
+[package.repository]
+vcs = "git"
+url = "https://github.com/evento-globolo/evgl-api"
+
+[publish]
+include_readme = true
+tag_format = "v{version}"
+exclude = [".env", ".env.*", "node_modules/**", "target/**", "dist/**", "*.log"]
+
+[dependencies]
+"evento-globolo/evgl-interfaces" = "^0.1.0"
+"evento-globolo/evgl-libs" = "^0.1.0"
