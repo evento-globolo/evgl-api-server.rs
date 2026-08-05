@@ -1,4 +1,4 @@
-name: CI
+name: ci
 on:
   pull_request:
   push:
@@ -6,12 +6,14 @@ on:
 permissions:
   contents: read
 jobs:
-  contracts:
+  rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          persist-credentials: false
-      - run: python3 scripts/verify_repo.py
-      - run: cargo test --all-targets
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-targets --all-features

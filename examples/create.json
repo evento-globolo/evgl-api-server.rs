@@ -1,0 +1,11 @@
+{
+  "title": "sample-title",
+  "description": "sample-description",
+  "starts_at": "2026-08-04T12:00:00Z",
+  "ends_at": "2026-08-04T12:00:00Z",
+  "venue": "sample-venue",
+  "city": "sample-city",
+  "country": "sample-country",
+  "organizer_id": "00000000-0000-0000-0000-000000000001",
+  "capacity": 100
+}

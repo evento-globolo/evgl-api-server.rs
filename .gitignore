@@ -1,8 +1,11 @@
+/target/
 .env
 .env.*
 !.env.example
-target/
 node_modules/
 dist/
 .astro/
+.wrangler/
+.DS_Store
 coverage/
+*.log
