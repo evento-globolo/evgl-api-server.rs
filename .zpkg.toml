@@ -13,7 +13,7 @@ url = "https://github.com/evento-globolo/evgl-api"
 [publish]
 include_readme = true
 tag_format = "v{version}"
-exclude = [".env", ".env.*", "node_modules/**", "zed_modules/**", "target/**", "dist/**", "*.log"]
+exclude = [".env", ".env.*", "node_modules/**", ".vendor/.zed/**", "target/**", "dist/**", "*.log"]
 
 [dependencies]
 "evento-globolo/evgl-interfaces" = "^0.1.0"
@@ -22,5 +22,5 @@ exclude = [".env", ".env.*", "node_modules/**", "zed_modules/**", "target/**", "
 "shared-auth/shared-auth-clients" = "^0.1.0"
 
 [install]
-dir = "zed_modules"
+dir = ".vendor/.zed"
 adapter = "rust"
