@@ -9,3 +9,7 @@ dist/
 .DS_Store
 coverage/
 *.log
+tmp
+temp
+tmp/worktrees
+temp/worktrees
