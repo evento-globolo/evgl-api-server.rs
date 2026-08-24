@@ -1,5 +1,14 @@
 use chrono::{Duration, Utc};
+use ed25519_dalek::SigningKey;
+use evgl_api::admission::{
+    AdmissionService, AdmissionTokenSigner, DEFAULT_MAX_TOKEN_LIFETIME, ScannerReceiptSigner,
+    verify_admission_token,
+};
 use evgl_api::ticketing::TicketingService;
+use evgl_interfaces::admission::{
+    ADMISSION_TOKEN_VERSION, AdmissionKeySnapshot, AdmissionOutcome, AdmissionTokenClaims,
+    ScanReceiptClaims,
+};
 use evgl_interfaces::ticketing::{
     CancelTicketOrder, ConfigureEventInventory, ConfirmTicketPayment, CreateTicketClass,
     CreateTicketOrder, JoinWaitlist, ReserveTickets,
@@ -313,6 +322,293 @@ async fn sellout_retry_timeout_refund_and_fair_promotion_are_auditable() -> Resu
         .await?,
         1
     );
+
+    test.cleanup().await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn offline_scans_reconcile_once_and_preserve_every_signed_receipt() -> Result<(), DbErr> {
+    let test = TestDatabase::create().await?;
+    let admission = AdmissionService::new(test.scoped.clone());
+    admission
+        .migrate()
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let now = Utc::now();
+    let event_id = Uuid::new_v4();
+    test.service
+        .configure_event(
+            &ConfigureEventInventory {
+                event_id,
+                capacity: 1,
+            },
+            now,
+        )
+        .await?;
+    let class_id = class(&test, event_id, "admission", 1).await?;
+    let hold_id = test
+        .service
+        .reserve(
+            &ReserveTickets {
+                event_id,
+                ticket_class_id: class_id,
+                quantity: 1,
+                idempotency_key: "admission-reserve".into(),
+                expires_at: now + Duration::minutes(5),
+            },
+            now,
+        )
+        .await?;
+    let order_id = test
+        .service
+        .create_order(
+            &CreateTicketOrder {
+                hold_id,
+                checkout_idempotency_key: "admission-checkout".into(),
+            },
+            now,
+        )
+        .await?;
+    test.service
+        .confirm_payment(
+            &ConfirmTicketPayment {
+                order_id,
+                payment_idempotency_key: "admission-payment".into(),
+            },
+            now,
+        )
+        .await?;
+
+    let token_signer = AdmissionTokenSigner::new(
+        SigningKey::from_bytes(&[11; 32]),
+        "admission-key-1",
+        1,
+        now - Duration::minutes(1),
+        now + Duration::hours(1),
+        DEFAULT_MAX_TOKEN_LIFETIME,
+    )
+    .map_err(|error| DbErr::Custom(error.to_string()))?;
+    admission
+        .register_signing_key(&token_signer.verification_key())
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let ticket_id = Uuid::new_v4();
+    admission
+        .register_entitlement(ticket_id, order_id, event_id, 1, now)
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let token_claims = AdmissionTokenClaims {
+        version: ADMISSION_TOKEN_VERSION,
+        token_id: Uuid::new_v4(),
+        event_id,
+        ticket_id,
+        order_id,
+        issuance_epoch: 1,
+        key_id: "admission-key-1".into(),
+        issued_at: now,
+        expires_at: now + Duration::minutes(10),
+    };
+    let compact = token_signer
+        .sign(&token_claims)
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let snapshot = AdmissionKeySnapshot {
+        snapshot_id: Uuid::new_v4(),
+        event_id,
+        generated_at: now - Duration::seconds(1),
+        valid_until: now + Duration::minutes(30),
+        keys: vec![token_signer.verification_key()],
+        revocations: Vec::new(),
+    };
+    assert_eq!(
+        verify_admission_token(&compact, &snapshot, event_id, now)
+            .map_err(|error| DbErr::Custom(error.to_string()))?,
+        token_claims
+    );
+    admission
+        .register_token(&token_claims)
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+
+    let first_scanner_id = Uuid::from_u128(1);
+    let second_scanner_id = Uuid::from_u128(2);
+    let first_scanner = ScannerReceiptSigner::new(
+        first_scanner_id,
+        "scanner-key-1",
+        SigningKey::from_bytes(&[21; 32]),
+    );
+    let second_scanner = ScannerReceiptSigner::new(
+        second_scanner_id,
+        "scanner-key-2",
+        SigningKey::from_bytes(&[22; 32]),
+    );
+    admission
+        .register_scanner_key(
+            first_scanner_id,
+            first_scanner.key_id(),
+            &first_scanner.public_key(),
+            now - Duration::minutes(1),
+            now + Duration::hours(1),
+        )
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    admission
+        .register_scanner_key(
+            second_scanner_id,
+            second_scanner.key_id(),
+            &second_scanner.public_key(),
+            now - Duration::minutes(1),
+            now + Duration::hours(1),
+        )
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+
+    let first_receipt = first_scanner
+        .sign(ScanReceiptClaims {
+            receipt_id: Uuid::from_u128(10),
+            scanner_id: first_scanner_id,
+            scanner_key_id: first_scanner.key_id().into(),
+            scanner_sequence: 1,
+            token_id: token_claims.token_id,
+            event_id,
+            ticket_id,
+            order_id,
+            scanned_at: now + Duration::seconds(1),
+        })
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let second_receipt = second_scanner
+        .sign(ScanReceiptClaims {
+            receipt_id: Uuid::from_u128(20),
+            scanner_id: second_scanner_id,
+            scanner_key_id: second_scanner.key_id().into(),
+            scanner_sequence: 1,
+            token_id: token_claims.token_id,
+            event_id,
+            ticket_id,
+            order_id,
+            scanned_at: now + Duration::seconds(1),
+        })
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+
+    admission
+        .record_receipt(&second_receipt, now + Duration::seconds(3))
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    admission
+        .record_receipt(&first_receipt, now + Duration::seconds(4))
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    assert_eq!(
+        admission
+            .record_receipt(&second_receipt, now + Duration::seconds(5))
+            .await
+            .map_err(|error| DbErr::Custom(error.to_string()))?,
+        second_receipt.claims.receipt_id
+    );
+
+    let outcomes = admission
+        .outcomes(ticket_id)
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    assert_eq!(outcomes.len(), 2);
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| outcome.outcome == AdmissionOutcome::Accepted)
+            .count(),
+        1
+    );
+    assert!(
+        outcomes
+            .iter()
+            .all(|outcome| { outcome.winning_receipt_id == Some(first_receipt.claims.receipt_id) })
+    );
+
+    let sequence_conflict = second_scanner
+        .sign(ScanReceiptClaims {
+            receipt_id: Uuid::from_u128(21),
+            scanner_id: second_scanner_id,
+            scanner_key_id: second_scanner.key_id().into(),
+            scanner_sequence: 1,
+            token_id: token_claims.token_id,
+            event_id,
+            ticket_id,
+            order_id,
+            scanned_at: now + Duration::seconds(2),
+        })
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    assert!(
+        admission
+            .record_receipt(&sequence_conflict, now + Duration::seconds(6))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        test.scalar_i64("select count(*) as count from admission_scan_receipts")
+            .await?,
+        2
+    );
+
+    let later_sequence = second_scanner
+        .sign(ScanReceiptClaims {
+            receipt_id: Uuid::from_u128(30),
+            scanner_id: second_scanner_id,
+            scanner_key_id: second_scanner.key_id().into(),
+            scanner_sequence: 3,
+            token_id: token_claims.token_id,
+            event_id,
+            ticket_id,
+            order_id,
+            scanned_at: now + Duration::seconds(3),
+        })
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let delayed_sequence = second_scanner
+        .sign(ScanReceiptClaims {
+            receipt_id: Uuid::from_u128(29),
+            scanner_id: second_scanner_id,
+            scanner_key_id: second_scanner.key_id().into(),
+            scanner_sequence: 2,
+            token_id: token_claims.token_id,
+            event_id,
+            ticket_id,
+            order_id,
+            scanned_at: now + Duration::seconds(2),
+        })
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    admission
+        .record_receipt(&later_sequence, now + Duration::seconds(7))
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    admission
+        .record_receipt(&delayed_sequence, now + Duration::seconds(8))
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    assert_eq!(
+        test.scalar_i64("select count(*) as count from admission_scan_receipts")
+            .await?,
+        4
+    );
+    assert_eq!(
+        test.scalar_i64(
+            "select count(*) as count from admission_scan_receipts where sequence_out_of_order"
+        )
+        .await?,
+        1
+    );
+
+    admission
+        .revoke_entitlement(ticket_id, now + Duration::seconds(9))
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let revoked_outcomes = admission
+        .outcomes(ticket_id)
+        .await
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    assert!(
+        revoked_outcomes
+            .iter()
+            .all(|outcome| outcome.outcome == AdmissionOutcome::Rejected)
+    );
+    assert_eq!(revoked_outcomes.len(), 4);
 
     test.cleanup().await
 }

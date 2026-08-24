@@ -7,13 +7,16 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 axum = { version = "0.8", features = ["macros", "ws"] }
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
-evgl-interfaces = { git = "https://github.com/evento-globolo/evgl-interfaces.git", rev = "9f4005aaeceb036ab9cc4b24b19baef2adb747b6" }
+ed25519-dalek = "2"
+evgl-interfaces = { git = "https://github.com/evento-globolo/evgl-interfaces.git", rev = "5401334622e9035a1ac08ab4c7f2ebeac6013016" }
 futures-util = "0.3"
 sea-orm = { version = "2.0", features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync"] }
 tower-http = { version = "0.7", features = ["cors", "trace"] }
 tracing = "0.1"

@@ -40,8 +40,11 @@ impl TicketingService {
         input.validate().map_err(validation_error)?;
         let result = self
             .query_one(
-                r#"insert into event_inventory (event_id, capacity, created_at, updated_at)
-                    values ($1, $2, $3, $3)
+                r#"with event_lock as materialized (
+                        select pg_advisory_xact_lock(hashtextextended($1::text, 3464))
+                    )
+                    insert into event_inventory (event_id, capacity, created_at, updated_at)
+                    select $1, $2, $3, $3 from event_lock
                     on conflict (event_id) do update
                     set capacity = excluded.capacity, updated_at = excluded.updated_at
                     where excluded.capacity >= (
