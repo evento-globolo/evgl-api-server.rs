@@ -7,7 +7,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 axum = { version = "0.8", features = ["macros", "ws"] }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 ed25519-dalek = "2"
