@@ -9,7 +9,7 @@ anyhow = "1"
 axum = { version = "0.8", features = ["macros", "ws"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
-dotenvy = "0.15"
+flags2env = { version = "0.1.0", git = "https://github.com/flags-2-env/flags-2-env", rev = "d7bad9ea7dfc657653368237e08903514cdca1ec" }
 ed25519-dalek = "2"
 evgl-interfaces = { git = "https://github.com/evento-globolo/evgl-interfaces.git", rev = "5401334622e9035a1ac08ab4c7f2ebeac6013016" }
 futures-util = "0.3"
@@ -17,7 +17,9 @@ sea-orm = { version = "2.0", features = ["macros", "runtime-tokio-rustls", "sqlx
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync"] }
+toml = "0.8"
 tower-http = { version = "0.7", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
