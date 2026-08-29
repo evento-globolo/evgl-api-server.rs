@@ -1,0 +1,57 @@
+[identity]
+service = "evgl-api"
+type_name = "RuntimeEnv"
+
+[help]
+url = "https://github.com/flags-2-env/flags-2-env"
+columns = ["options", "env", "type", "default", "description"]
+
+[parse]
+allow_unknown = false
+
+[env]
+ignore = ["DATABASE_URL"]
+
+[flags.help]
+env = "CLI_HELP_REQUESTED"
+long = "help"
+short = "h"
+type = "boolean"
+default = false
+help = "Print command-line help."
+
+[flags.version]
+env = "CLI_VERSION_REQUESTED"
+long = "version"
+short = "V"
+type = "boolean"
+default = false
+help = "Print the server version."
+
+[flags.host]
+env = "HOST"
+long = "host"
+type = "string"
+default = "0.0.0.0"
+help = "API listener host."
+
+[flags.port]
+env = "PORT"
+long = "port"
+short = "p"
+type = "integer"
+default = 8080
+help = "API listener port."
+
+[flags.supabase-url]
+env = "SUPABASE_URL"
+long = "supabase-url"
+type = "string"
+help = "Credential-free Supabase project URL."
+
+[flags.rust-log]
+env = "RUST_LOG"
+long = "rust-log"
+type = "string"
+default = "error"
+help = "Tracing filter."

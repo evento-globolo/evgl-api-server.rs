@@ -1,18 +1,23 @@
-use std::{collections::HashMap, env, sync::Arc};
+mod flags;
+
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::{Path, State, ws::{Message, WebSocket, WebSocketUpgrade}},
+    Json, Router,
+    extract::{
+        Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use sea_orm::{Database, DatabaseConnection};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use uuid::Uuid;
@@ -64,13 +69,20 @@ struct Health {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
+    if let Some(output) = flags::process_control().map_err(anyhow::Error::msg)? {
+        print!("{output}");
+        return Ok(());
+    }
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(tracing_subscriber::EnvFilter::try_new(
+            flags::var("RUST_LOG").unwrap_or_else(|_| "error".to_owned()),
+        )?)
         .init();
 
-    let db = match env::var("DATABASE_URL") {
-        Ok(url) if !url.trim().is_empty() => Some(Database::connect(url).await.context("connect database")?),
+    let db = match flags::var("DATABASE_URL") {
+        Ok(url) if !url.trim().is_empty() => {
+            Some(Database::connect(url).await.context("connect database")?)
+        }
         _ => None,
     };
     let (events, _) = broadcast::channel(512);
@@ -78,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
         db,
         records: Arc::new(RwLock::new(HashMap::new())),
         events,
-        supabase_url: env::var("SUPABASE_URL").ok(),
+        supabase_url: flags::var("SUPABASE_URL").ok(),
     };
 
     let app = Router::new()
@@ -90,11 +102,13 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
+    let host = flags::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
+    let port = flags::var("PORT").unwrap_or_else(|_| "8080".into());
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
     info!(address = %listener.local_addr()?, "Evento Globolo API listening");
-    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
 }
 
@@ -137,8 +151,14 @@ async fn create_record(
         organizer_id: input.organizer_id,
         capacity: input.capacity,
     };
-    state.records.write().await.insert(record.id, record.clone());
-    let _ = state.events.send(serde_json::to_string(&record).unwrap_or_default());
+    state
+        .records
+        .write()
+        .await
+        .insert(record.id, record.clone());
+    let _ = state
+        .events
+        .send(serde_json::to_string(&record).unwrap_or_default());
     (StatusCode::CREATED, Json(record))
 }
 
@@ -151,12 +171,16 @@ async fn websocket(socket: WebSocket, state: AppState) {
     let mut events = state.events.subscribe();
     let send_task = tokio::spawn(async move {
         while let Ok(event) = events.recv().await {
-            if sender.send(Message::Text(event.into())).await.is_err() { break; }
+            if sender.send(Message::Text(event.into())).await.is_err() {
+                break;
+            }
         }
     });
     let receive_task = tokio::spawn(async move {
         while let Some(Ok(message)) = receiver.next().await {
-            if matches!(message, Message::Close(_)) { break; }
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
         }
     });
     tokio::select! { _ = send_task => {}, _ = receive_task => {} }
