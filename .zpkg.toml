@@ -16,6 +16,8 @@ tag_format = "v{version}"
 exclude = [".env", ".env.*", "node_modules/**", ".vendor/.zed/**", "target/**", "dist/**", "*.log"]
 
 [dependencies]
+"evento-globolo/evgl-lib-core" = "^0.1.0"
+"evento-globolo/evgl-orm-core" = "^0.1.0"
 "evento-globolo/evgl-interfaces" = "^0.1.0"
 "evento-globolo/evgl-libs" = "^0.1.0"
 "evento-globolo/evgl-sync" = "^0.1.0"
