@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
+ores-middleware = { git = "https://github.com/ORESoftware/ores-middleware", rev = "a7184454564ef17aa8685fa6393c96b85852056b", features = ["axum"] }
 anyhow = "1"
 axum = { version = "0.8", features = ["macros", "ws"] }
 base64 = "0.22"

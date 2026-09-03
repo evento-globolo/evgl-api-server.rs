@@ -2,17 +2,20 @@ use std::{collections::HashMap, env, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::{Path, State, ws::{Message, WebSocket, WebSocketUpgrade}},
+    Json, Router,
+    extract::{
+        Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use sea_orm::{Database, DatabaseConnection};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use uuid::Uuid;
@@ -70,7 +73,9 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let db = match env::var("DATABASE_URL") {
-        Ok(url) if !url.trim().is_empty() => Some(Database::connect(url).await.context("connect database")?),
+        Ok(url) if !url.trim().is_empty() => {
+            Some(Database::connect(url).await.context("connect database")?)
+        }
         _ => None,
     };
     let (events, _) = broadcast::channel(512);
@@ -94,7 +99,12 @@ async fn main() -> anyhow::Result<()> {
     let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
     info!(address = %listener.local_addr()?, "Evento Globolo API listening");
-    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    axum::serve(
+        listener,
+        ores_middleware::frameworks::axum::install_from_env(app, env!("CARGO_PKG_NAME"))?,
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
@@ -137,8 +147,14 @@ async fn create_record(
         organizer_id: input.organizer_id,
         capacity: input.capacity,
     };
-    state.records.write().await.insert(record.id, record.clone());
-    let _ = state.events.send(serde_json::to_string(&record).unwrap_or_default());
+    state
+        .records
+        .write()
+        .await
+        .insert(record.id, record.clone());
+    let _ = state
+        .events
+        .send(serde_json::to_string(&record).unwrap_or_default());
     (StatusCode::CREATED, Json(record))
 }
 
@@ -151,12 +167,16 @@ async fn websocket(socket: WebSocket, state: AppState) {
     let mut events = state.events.subscribe();
     let send_task = tokio::spawn(async move {
         while let Ok(event) = events.recv().await {
-            if sender.send(Message::Text(event.into())).await.is_err() { break; }
+            if sender.send(Message::Text(event.into())).await.is_err() {
+                break;
+            }
         }
     });
     let receive_task = tokio::spawn(async move {
         while let Some(Ok(message)) = receiver.next().await {
-            if matches!(message, Message::Close(_)) { break; }
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
         }
     });
     tokio::select! { _ = send_task => {}, _ = receive_task => {} }
