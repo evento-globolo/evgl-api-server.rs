@@ -10,7 +10,7 @@ axum = { version = "0.8", features = ["macros", "ws"] }
 base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
-ed25519-dalek = "2"
+ed25519-dalek = "3"
 evgl-interfaces = { git = "https://github.com/evento-globolo/evgl-interfaces.git", rev = "5401334622e9035a1ac08ab4c7f2ebeac6013016" }
 futures-util = "0.3"
 sea-orm = { version = "2.0", features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
