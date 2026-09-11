@@ -10,7 +10,7 @@ ores-transport = { git = "https://github.com/ORESoftware/ores-transport.git", br
 k8s-web-api-data-plane = { git = "https://github.com/ORESoftware/k8s-libs-and-shared-defs.git", rev = "55adadc9f6d223d40b28ae66097dfe16930951b1", package = "k8s-web-api-data-plane" }
 anyhow = "1"
 axum = { version = "0.8", features = ["macros", "ws"] }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 ed25519-dalek = "2"
@@ -19,7 +19,7 @@ futures-util = "0.3"
 sea-orm = { version = "2.0", features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync"] }
 tower-http = { version = "0.7", features = ["cors", "trace"] }
 tracing = "0.1"
